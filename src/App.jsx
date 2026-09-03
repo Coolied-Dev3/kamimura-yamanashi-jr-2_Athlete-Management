@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import * as api from './api'
 import { PlayersPage, PlayerDetail } from './pages/Players.jsx'
 import { ResultsPage } from './pages/Results.jsx'
@@ -84,16 +84,21 @@ export default function App() {
 // ============ ログイン ============
 function Login({ onLogin, theme, toggleTheme }) {
   const [tab, setTab] = useState('admin')
-  const [id, setId] = useState('')
-  const [pw, setPw] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  // ブラウザの自動入力で React の state と入力欄の値がずれることがあるため、
+  // 送信時に入力欄そのものの値を読む（非制御コンポーネント）
+  const idRef = useRef(null)
+  const pwRef = useRef(null)
 
   async function doLogin() {
+    const id = (idRef.current?.value || '').trim()
+    const pw = pwRef.current?.value || ''
+    if (!id || !pw) { setErr('IDとパスワードを入力してください'); return }
     setErr(''); setBusy(true)
     try {
-      const u = tab === 'admin' ? await api.loginAdmin(id.trim(), pw) : await api.loginPlayer(id.trim(), pw)
-      if (!u) { setErr('IDまたはパスワードが違います'); return }
+      const u = tab === 'admin' ? await api.loginAdmin(id, pw) : await api.loginPlayer(id, pw)
+      if (!u) { setErr(`IDまたはパスワードが違います（${tab === 'admin' ? '管理者' : '選手'}として照合）`); return }
       onLogin({ role: tab, user: u })
     } catch (e) {
       setErr('接続エラー: ' + (e.message || e))
@@ -115,9 +120,13 @@ function Login({ onLogin, theme, toggleTheme }) {
           <button className={tab === 'admin' ? 'on' : ''} onClick={() => setTab('admin')}>管理者</button>
           <button className={tab === 'player' ? 'on' : ''} onClick={() => setTab('player')}>選手</button>
         </div>
-        <div className="fg"><label>{tab === 'admin' ? 'ユーザーID' : '選手ID'}</label><input value={id} onChange={e => setId(e.target.value)} autoCapitalize="none" /></div>
-        <div className="fg"><label>パスワード</label><input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') doLogin() }} /></div>
-        <button className="bp" disabled={busy} onClick={doLogin}>{busy ? '...' : 'ログイン'}</button>
+        <form onSubmit={e => { e.preventDefault(); doLogin() }}>
+          <div className="fg"><label>{tab === 'admin' ? 'ユーザーID（コーチ）' : '選手ID'}</label>
+            <input ref={idRef} name="username" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} /></div>
+          <div className="fg"><label>パスワード</label>
+            <input ref={pwRef} type="password" name="password" autoComplete="current-password" /></div>
+          <button className="bp" type="submit" disabled={busy}>{busy ? '...' : 'ログイン'}</button>
+        </form>
         {err && <p className="err">{err}</p>}
         <p className="hint">練習管理システムと同じ ID・パスワードでログインできます</p>
       </div>
