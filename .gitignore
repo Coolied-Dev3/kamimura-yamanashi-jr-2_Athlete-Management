@@ -1,0 +1,16 @@
+node_modules
+dist
+.env
+.env.local
+.DS_Store
+*.log
+
+# backend
+server/node_modules
+server/.env
+
+# runtime logs
+logs
+
+# DB backup dumps
+backup*.sql
