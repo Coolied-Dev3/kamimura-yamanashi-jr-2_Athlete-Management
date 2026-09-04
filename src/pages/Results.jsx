@@ -8,11 +8,16 @@ const KINDS = ['大会', '記録会', 'TT', 'その他']
 const kindCls = { '大会': 'bs', '記録会': 'be', 'TT': 'bt', 'その他': 'bt' }
 export const dateRange = (c) => fmt(c.date_from) + (c.date_to && c.date_to !== c.date_from ? '〜' + fmt(c.date_to) : '')
 
+// 年度（4/1〜翌3/31）: 'yyyy-mm-dd' → 西暦年度
+export const fiscalYear = (d) => { const y = Number(String(d).slice(0, 4)), m = Number(String(d).slice(5, 7)); return m >= 4 ? y : y - 1 }
+const FY_FIRST = 2026, FY_SPAN = 10 // 2026年度〜2036年度（10年後まで）
+
 // ============ 大会・記録会 一覧 ============
 export function ResultsPage({ events, masters, toast }) {
   const [comps, setComps] = useState(null)
   const [sel, setSel] = useState(null)
   const [edit, setEdit] = useState(undefined)
+  const [fy, setFy] = useState(String(fiscalYear(todayStr()))) // 既定＝現在の年度。'all'=すべて
 
   async function reload() { setComps(await api.getCompetitions()) }
   useEffect(() => { reload() }, [])
@@ -25,14 +30,26 @@ export function ResultsPage({ events, masters, toast }) {
   }
   if (comps === null) return <Loading />
 
+  // 年度の選択肢：2026〜2036年度 ＋ データに存在する年度（過去分）
+  const fyList = [...new Set([...Array.from({ length: FY_SPAN + 1 }, (_, i) => FY_FIRST + i), ...comps.map(c => fiscalYear(c.date_from))])].sort()
+  const countOf = (y) => comps.filter(c => fiscalYear(c.date_from) === y).length
+  const shown = fy === 'all' ? comps : comps.filter(c => String(fiscalYear(c.date_from)) === fy)
+
   return (
     <>
       <div style={{ padding: '10px 13px 0' }}>
+        <div className="fg" style={{ marginBottom: 6 }}>
+          <label>年度（4月1日〜翌年3月31日）</label>
+          <select value={fy} onChange={e => setFy(e.target.value)}>
+            <option value="all">すべての年度（{comps.length}件）</option>
+            {fyList.map(y => <option key={y} value={String(y)}>{y}年度（{y}/4〜{y + 1}/3）　{countOf(y)}件</option>)}
+          </select>
+        </div>
         <button className="ab" onClick={() => setEdit(null)}><i className="ti ti-plus" /> 大会・記録会を追加</button>
       </div>
-      <p className="st">大会・記録会（{comps.length}件）　タップで結果を一覧登録</p>
-      {comps.length === 0 && <p className="empty"><i className="ti ti-flag" />大会・記録会がありません</p>}
-      {comps.map(c => (
+      <p className="st">大会・記録会（{shown.length}件）　タップで結果を一覧登録</p>
+      {shown.length === 0 && <p className="empty"><i className="ti ti-flag" />{fy === 'all' ? '大会・記録会がありません' : `${fy}年度の大会・記録会はありません`}</p>}
+      {shown.map(c => (
         <div className="hr" key={c.id} onClick={() => setSel(c)}>
           <div className="ni"><i className={'ti ' + (c.kind === 'TT' ? 'ti-stopwatch' : 'ti-flag')} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>

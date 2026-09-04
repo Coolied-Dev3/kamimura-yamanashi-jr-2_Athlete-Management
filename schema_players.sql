@@ -165,10 +165,13 @@ WHERE x.rn = 1;
 -- ------------------------------------------------------------
 INSERT INTO masters (kind, value, sort_order)
 SELECT * FROM (
-  SELECT 'member_rank' AS kind, 'エリート' AS value, 1 AS sort_order UNION ALL
-  SELECT 'member_rank', 'ピュア', 2 UNION ALL
-  SELECT 'member_rank', 'ピュア-2', 3 UNION ALL
-  SELECT 'member_rank', '練習生', 4 UNION ALL
+  SELECT 'member_rank' AS kind, 'ピュア　スカラシップ' AS value, 1 AS sort_order UNION ALL
+  SELECT 'member_rank', 'ピュア-2 500', 2 UNION ALL
+  SELECT 'member_rank', 'ピュア-3-1000', 3 UNION ALL
+  SELECT 'member_rank', 'エリート', 4 UNION ALL
+  SELECT 'member_rank', 'フューチャー', 5 UNION ALL
+  SELECT 'member_rank', '練習生', 6 UNION ALL
+  SELECT 'member_rank', '練習生（エリート）', 7 UNION ALL
   SELECT 'org_kind', '小学', 1 UNION ALL
   SELECT 'org_kind', '中学', 2 UNION ALL
   SELECT 'org_kind', '高校', 3 UNION ALL

@@ -15,6 +15,7 @@ export function PlayersPage({ teams, masters, toast }) {
   const [qtext, setQtext] = useState('')
   const [sel, setSel] = useState(null)       // 詳細表示中の選手ID
   const [edit, setEdit] = useState(undefined) // undefined=閉, null=新規
+  const [view, setView] = useState('table')   // table=一覧（既定） | cards=カード
 
   async function reload() { setPlayers(await api.getPlayers()) }
   useEffect(() => { reload() }, [])
@@ -34,11 +35,32 @@ export function PlayersPage({ teams, masters, toast }) {
   return (
     <>
       <div className="cr">
+        <button className={'ch' + (view === 'table' ? ' on' : '')} onClick={() => setView('table')}><i className="ti ti-table" /> 一覧</button>
+        <button className={'ch' + (view === 'cards' ? ' on' : '')} onClick={() => setView('cards')}><i className="ti ti-id" /> カード</button>
+        <span style={{ borderLeft: '1px solid var(--line2)', margin: '0 3px' }} />
         {orgs.map(o => <button key={o} className={'ch' + (org === o ? ' on' : '')} onClick={() => setOrg(o)}>{o}</button>)}
       </div>
       <div className="srch"><input className="in" placeholder="氏名・カナ・学校で検索" value={qtext} onChange={e => setQtext(e.target.value)} /></div>
-      <p className="st">{list.length}名</p>
-      {list.map(p => (
+      <p className="st">{list.length}名　タップで詳細</p>
+
+      {view === 'table' && list.length > 0 && (
+        <div className="tw"><table className="tb">
+          <thead><tr><th>氏名</th><th>生年月日</th><th>性別</th><th>学年</th><th>学校</th><th>チーム</th><th>会員区分</th></tr></thead>
+          <tbody>{list.map(p => (
+            <tr key={p.id} className="clk" onClick={() => setSel(p.id)}>
+              <td style={{ fontWeight: 500 }}>{p.name}{!!p.trainee && <span className="bt">練習生</span>}</td>
+              <td>{fmt(p.birth)}</td>
+              <td>{p.gender || ''}</td>
+              <td>{[p.org_kind || '', p.grade ? p.grade + '年' : ''].join('')}</td>
+              <td>{p.school || ''}</td>
+              <td>{p.team_code ? p.team_code + 'チーム' : ''}</td>
+              <td>{p.rank || ''}</td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+      )}
+
+      {view === 'cards' && list.map(p => (
         <div className="pr" key={p.id} onClick={() => setSel(p.id)}>
           <div className={'av' + (p.trainee ? ' avt' : '')}>{p.name.charAt(0)}</div>
           <div style={{ flex: 1, minWidth: 0 }}>

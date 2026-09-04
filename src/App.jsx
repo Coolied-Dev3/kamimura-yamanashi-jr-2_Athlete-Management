@@ -82,8 +82,10 @@ export default function App() {
 }
 
 // ============ ログイン ============
+// ログインは管理者（コーチ）のみ。選手タブは非表示（選手ログインのAPIは残してある）
+const LOGIN_TAB = 'admin'
 function Login({ onLogin, theme, toggleTheme }) {
-  const [tab, setTab] = useState('admin')
+  const tab = LOGIN_TAB
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   // ブラウザの自動入力で React の state と入力欄の値がずれることがあるため、
@@ -112,16 +114,27 @@ function Login({ onLogin, theme, toggleTheme }) {
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
         <div className="ll">
-          <i className="ti ti-trophy" />
           <h2>神村学園山梨Jr陸上Club</h2>
-          <p>選手管理システム</p>
-        </div>
-        <div className="tabs">
-          <button className={tab === 'admin' ? 'on' : ''} onClick={() => setTab('admin')}>管理者</button>
-          <button className={tab === 'player' ? 'on' : ''} onClick={() => setTab('player')}>選手</button>
+          {/* 選手・記録のピクトグラム */}
+          <div className="lpic">
+            <div className="lpic-i">
+              <svg viewBox="0 0 24 24" width="52" height="52" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="13" cy="4" r="1.6" />
+                <path d="M4 17l5 1l.75 -1.5" /><path d="M15 21l0 -4l-4 -3l1 -6" /><path d="M7 12l0 -3l5 -1l3 3l3 1" />
+              </svg>
+              <span>選手</span>
+            </div>
+            <div className="lpic-i">
+              <svg viewBox="0 0 24 24" width="52" height="52" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="13" r="7" /><path d="M14.5 10.5l-2.5 2.5" /><path d="M17 8l1 -1" /><path d="M14 3h-4" /><path d="M12 3v2" />
+              </svg>
+              <span>記録</span>
+            </div>
+          </div>
+          <p className="lt">選手管理システム</p>
         </div>
         <form onSubmit={e => { e.preventDefault(); doLogin() }}>
-          <div className="fg"><label>{tab === 'admin' ? 'ユーザーID（コーチ）' : '選手ID'}</label>
+          <div className="fg"><label>ユーザーID（コーチ）</label>
             <input ref={idRef} name="username" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} /></div>
           <div className="fg"><label>パスワード</label>
             <input ref={pwRef} type="password" name="password" autoComplete="current-password" /></div>
