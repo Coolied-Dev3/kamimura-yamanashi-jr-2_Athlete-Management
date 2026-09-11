@@ -20,8 +20,9 @@ const h = (fn) => (req, res) => fn(req, res).catch(e => {
 })
 const nz = (v) => (v === '' || v === undefined ? null : v) // 空文字は NULL に
 
-// 記録一覧・ベスト一覧の共通並び順：団体（一般→高校→中学→小学）→ 女子→男子 → 学年の高い順 → 選手ID
-const PLAYER_ORDER = `CASE p.org_kind WHEN '一般' THEN 0 WHEN '高校' THEN 1 WHEN '中学' THEN 2 WHEN '小学' THEN 3 ELSE 9 END,
+// 選手の共通並び順：小学女子 → 小学男子 → 中学女子 → 中学男子 → 高校 → 一般（各区分内は学年の高い順 → 選手ID）
+// 選手一覧・記録の一覧登録・ベスト一覧・注文画面の選手選択で共通
+const PLAYER_ORDER = `CASE p.org_kind WHEN '小学' THEN 0 WHEN '中学' THEN 1 WHEN '高校' THEN 2 WHEN '一般' THEN 3 ELSE 9 END,
       CASE p.gender WHEN '女' THEN 0 WHEN '男' THEN 1 ELSE 2 END,
       CAST(p.grade AS UNSIGNED) DESC, p.id`
 
@@ -103,7 +104,7 @@ app.get('/players', h(async (_req, res) => {
   res.json(await q(`SELECT p.*, t.sort_order AS team_sort,
       (SELECT COUNT(*) FROM results r WHERE r.player_id=p.id) AS result_count
     FROM players p LEFT JOIN teams t ON t.code=p.team_code
-    ORDER BY COALESCE(t.sort_order, 99), p.id`))
+    ORDER BY ${PLAYER_ORDER}`))
 }))
 
 app.get('/players/:id', h(async (req, res) => {
