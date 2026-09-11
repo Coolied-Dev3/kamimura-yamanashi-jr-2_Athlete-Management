@@ -20,6 +20,11 @@ const h = (fn) => (req, res) => fn(req, res).catch(e => {
 })
 const nz = (v) => (v === '' || v === undefined ? null : v) // 空文字は NULL に
 
+// 記録一覧・ベスト一覧の共通並び順：団体（一般→高校→中学→小学）→ 女子→男子 → 学年の高い順 → 選手ID
+const PLAYER_ORDER = `CASE p.org_kind WHEN '一般' THEN 0 WHEN '高校' THEN 1 WHEN '中学' THEN 2 WHEN '小学' THEN 3 ELSE 9 END,
+      CASE p.gender WHEN '女' THEN 0 WHEN '男' THEN 1 ELSE 2 END,
+      CAST(p.grade AS UNSIGNED) DESC, p.id`
+
 // ============ 認証（簡易方式：テーブル照合。練習管理System と同じアカウント）============
 app.post('/auth/admin', h(async (req, res) => {
   const { loginId, password } = req.body
@@ -175,7 +180,7 @@ app.get('/competitions/:id/results', h(async (req, res) => {
       (v.result_id IS NOT NULL) AS is_pb
     FROM results r JOIN events e ON e.id=r.event_id JOIN players p ON p.id=r.player_id
     LEFT JOIN v_personal_bests v ON v.result_id=r.id
-    WHERE r.competition_id=? ORDER BY r.id`, [req.params.id]))
+    WHERE r.competition_id=? ORDER BY ${PLAYER_ORDER}, e.sort_order, r.id`, [req.params.id]))
 }))
 
 // 一覧登録：大会の記録を丸ごと置き換え（body: { rows:[{player_id, event_id, mark, rank_text, note}] }）
@@ -243,7 +248,7 @@ app.get('/pb', h(async (_req, res) => {
   res.json(await q(`SELECT v.*, p.name AS player_name, p.kana, p.gender, p.org_kind, p.grade, p.team_code, p.trainee, p.\`rank\` AS member_rank,
       COALESCE(t.sort_order, 99) AS team_sort
     FROM v_personal_bests v JOIN players p ON p.id=v.player_id LEFT JOIN teams t ON t.code=p.team_code
-    ORDER BY team_sort, p.id, v.event_sort`))
+    ORDER BY ${PLAYER_ORDER}, v.event_sort`))
 }))
 
 // ============ trials（体験申込）============
@@ -315,6 +320,111 @@ app.post('/trials/:id/join', h(async (req, res) => {
   }
   await q("UPDATE trials SET status='入会', joined_date=?, player_id=? WHERE id=?", [nz(joined_date), playerId, id])
   res.json({ ok: true, player_id: playerId })
+}))
+
+// ============ 物品注文管理（order_items / orders）============
+const splitSizes = (s) => String(s || '').split(/[,、，\s]+/).map(x => x.trim()).filter(Boolean)
+
+app.get('/order-items', h(async (_req, res) => {
+  res.json(await q(`SELECT i.*, (SELECT COUNT(*) FROM orders o WHERE o.item_id=i.id) AS order_count
+    FROM order_items i ORDER BY i.sort_order, i.id`))
+}))
+
+app.post('/order-items', h(async (req, res) => {
+  const it = req.body
+  const name = String(it.name || '').trim()
+  if (!name) return res.status(400).json({ error: 'アイテム名を入力してください' })
+  const sizes = splitSizes(it.sizes).join(',')
+  const price = it.price === '' || it.price === undefined || it.price === null ? null : Number(it.price)
+  if (it.id) {
+    await q('UPDATE order_items SET name=?, sizes=?, price=?, note=?, active=? WHERE id=?',
+      [name, sizes, price, nz(it.note), it.active === false || it.active === 0 ? 0 : 1, it.id])
+    res.json({ ok: true, id: it.id })
+  } else {
+    const mx = await q('SELECT COALESCE(MAX(sort_order),0) AS m FROM order_items')
+    const r = await q('INSERT INTO order_items (name, sizes, price, note, sort_order) VALUES (?,?,?,?,?)', [name, sizes, price, nz(it.note), mx[0].m + 1])
+    res.json({ ok: true, id: r.insertId })
+  }
+}))
+
+app.put('/order-items/order', h(async (req, res) => {
+  const ids = req.body.ids || []
+  for (let i = 0; i < ids.length; i++) await q('UPDATE order_items SET sort_order=? WHERE id=?', [i + 1, ids[i]])
+  res.json({ ok: true })
+}))
+
+app.delete('/order-items/:id', h(async (req, res) => {
+  const used = await q('SELECT COUNT(*) AS n FROM orders WHERE item_id=?', [req.params.id])
+  if (used[0].n > 0) return res.status(400).json({ error: `注文が ${used[0].n} 件あるため削除できません（受付終了にしてください）` })
+  await q('DELETE FROM order_items WHERE id=?', [req.params.id])
+  res.json({ ok: true })
+}))
+
+// 注文一覧（アイテム・注文者名を結合。絞り込みは画面側）
+const ORDER_SELECT = `SELECT o.*, i.name AS item_name, i.price AS item_price, i.sort_order AS item_sort,
+    COALESCE(p.name, o.orderer_name) AS who, p.name AS player_name, p.org_kind, p.grade, p.gender, p.team_code
+  FROM orders o JOIN order_items i ON i.id=o.item_id LEFT JOIN players p ON p.id=o.player_id`
+
+app.get('/orders', h(async (_req, res) => {
+  res.json(await q(`${ORDER_SELECT} ORDER BY i.sort_order, o.ordered_date DESC, o.id DESC`))
+}))
+
+const ORDER_COLS = ['item_id', 'player_id', 'orderer_name', 'size', 'qty', 'ordered_date', 'delivered_date', 'paid_date', 'amount', 'note']
+function orderVals(o) {
+  if (!o.item_id) throw Object.assign(new Error('アイテムを選択してください'), { status: 400 })
+  if (!o.player_id && !String(o.orderer_name || '').trim()) throw Object.assign(new Error('注文者（選手または氏名）を入力してください'), { status: 400 })
+  if (!o.ordered_date) throw Object.assign(new Error('注文日を入力してください'), { status: 400 })
+  return [
+    Number(o.item_id), o.player_id ? Number(o.player_id) : null, o.player_id ? null : String(o.orderer_name).trim(),
+    nz(o.size), Math.max(1, Number(o.qty) || 1), o.ordered_date, nz(o.delivered_date), nz(o.paid_date),
+    o.amount === '' || o.amount === undefined || o.amount === null ? null : Number(o.amount), nz(o.note),
+  ]
+}
+const badReq = (res, e) => (e.status === 400 ? (res.status(400).json({ error: e.message }), true) : false)
+
+app.post('/orders', h(async (req, res) => {
+  const o = req.body
+  let vals
+  try { vals = orderVals(o) } catch (e) { if (badReq(res, e)) return; throw e }
+  if (o.id) {
+    await q(`UPDATE orders SET ${ORDER_COLS.map(c => c + '=?').join(',')} WHERE id=?`, [...vals, o.id])
+    res.json({ ok: true, id: o.id })
+  } else {
+    const r = await q(`INSERT INTO orders (${ORDER_COLS.join(',')}) VALUES (${ORDER_COLS.map(() => '?').join(',')})`, vals)
+    res.json({ ok: true, id: r.insertId })
+  }
+}))
+
+// まとめて注文（body: { rows:[{item_id, player_id, size, qty, ordered_date, note}] }）
+app.post('/orders/bulk', h(async (req, res) => {
+  const rows = req.body.rows || []
+  const conn = await pool.getConnection()
+  try {
+    await conn.beginTransaction()
+    for (const o of rows) {
+      const vals = orderVals(o)
+      await conn.query(`INSERT INTO orders (${ORDER_COLS.join(',')}) VALUES (${ORDER_COLS.map(() => '?').join(',')})`, vals)
+    }
+    await conn.commit()
+    res.json({ ok: true, count: rows.length })
+  } catch (e) {
+    await conn.rollback()
+    if (badReq(res, e)) return
+    throw e
+  } finally { conn.release() }
+}))
+
+// 手渡し日・徴収日をワンタップで記録／取消（body: { field:'delivered_date'|'paid_date', date:'yyyy-mm-dd'|null }）
+app.post('/orders/:id/mark', h(async (req, res) => {
+  const { field, date } = req.body
+  if (!['delivered_date', 'paid_date'].includes(field)) return res.status(400).json({ error: 'bad field' })
+  await q(`UPDATE orders SET ${field}=? WHERE id=?`, [nz(date), req.params.id])
+  res.json({ ok: true })
+}))
+
+app.delete('/orders/:id', h(async (req, res) => {
+  await q('DELETE FROM orders WHERE id=?', [req.params.id])
+  res.json({ ok: true })
 }))
 
 // ============ フロント本番ビルドの配信 ============

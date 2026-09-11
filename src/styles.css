@@ -204,3 +204,17 @@ button{font-family:var(--font)}
 .lpic-i span{font-size:15px;font-weight:700;letter-spacing:1px}
 .ll .lt{font-size:26px;font-weight:800;color:var(--sax-d);letter-spacing:1px;margin-top:6px;line-height:1.3}
 :root[data-theme="dark"] .ll .lt{color:var(--sax)}
+
+/* ---- 物品注文管理 ---- */
+.ost{display:inline-block;padding:1px 8px;border-radius:20px;font-size:11px;font-weight:600;color:#fff;background:var(--amber);white-space:nowrap;vertical-align:middle}
+.ost.d{background:var(--sax)}
+.ost.p{background:var(--green)}
+.qb{padding:3px 8px;border:1px solid var(--line2);border-radius:var(--radius-sm);background:transparent;color:var(--sax);cursor:pointer;font-size:12px;white-space:nowrap}
+.qb.done{border-color:transparent;color:var(--text2);background:var(--bg2)}
+.qb:disabled{opacity:.4;cursor:default}
+.osum{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--text2);padding:0 14px 6px}
+.osum b{color:var(--text)}
+.ohead{display:flex;align-items:center;gap:8px;padding:12px 14px 4px}
+.ohead .t{font-size:15px;font-weight:600;flex:1}
+.brow{display:grid;grid-template-columns:1fr 110px 64px;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+.brow .fg{margin:0}

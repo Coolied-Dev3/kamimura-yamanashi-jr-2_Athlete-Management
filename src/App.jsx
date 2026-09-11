@@ -4,6 +4,7 @@ import { PlayersPage, PlayerDetail } from './pages/Players.jsx'
 import { ResultsPage } from './pages/Results.jsx'
 import { BestsPage } from './pages/Bests.jsx'
 import { TrialsPage } from './pages/Trials.jsx'
+import { OrdersPage } from './pages/Orders.jsx'
 import { AdminPage } from './pages/Admin.jsx'
 
 // 日付ユーティリティ
@@ -157,6 +158,7 @@ function Main({ session, teams, masters, events, reloadCommon, toast, onLogout, 
     ['results', 'ti-stopwatch', '記録'],
     ['bests', 'ti-trophy', 'ベスト'],
     ['trials', 'ti-user-plus', '体験'],
+    ['orders', 'ti-shirt', '物品'],
     ['admin', 'ti-settings', '管理'],
   ]
   const playerTabs = [
@@ -192,6 +194,7 @@ function Main({ session, teams, masters, events, reloadCommon, toast, onLogout, 
         {tab === 'results' && <ResultsPage events={events} masters={masters} toast={toast} />}
         {tab === 'bests' && <BestsPage myId={isAdmin ? null : me.id} />}
         {tab === 'trials' && <TrialsPage teams={teamCodes} masters={masters} events={events} toast={toast} />}
+        {tab === 'orders' && <OrdersPage masters={masters} toast={toast} />}
         {tab === 'admin' && <AdminPage masters={masters} events={events} reloadCommon={reloadCommon} toast={toast} />}
         {tab === 'mine' && <PlayerDetail id={me.id} teams={teamCodes} masters={masters} toast={toast} canEdit={false} />}
       </div>
