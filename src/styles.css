@@ -218,3 +218,5 @@ button{font-family:var(--font)}
 .ohead .t{font-size:15px;font-weight:600;flex:1}
 .brow{display:grid;grid-template-columns:1fr 110px 64px;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
 .brow .fg{margin:0}
+.ost.n{background:var(--grey)}
+.qb.warn{border-color:var(--red);color:var(--red)}

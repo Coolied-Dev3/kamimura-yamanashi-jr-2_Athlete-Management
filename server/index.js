@@ -369,14 +369,14 @@ app.get('/orders', h(async (_req, res) => {
   res.json(await q(`${ORDER_SELECT} ORDER BY i.sort_order, o.ordered_date DESC, o.id DESC`))
 }))
 
-const ORDER_COLS = ['item_id', 'player_id', 'orderer_name', 'size', 'qty', 'ordered_date', 'delivered_date', 'paid_date', 'amount', 'note']
+const ORDER_COLS = ['item_id', 'player_id', 'orderer_name', 'size', 'qty', 'placed', 'ordered_date', 'delivered_date', 'paid_date', 'amount', 'note']
 function orderVals(o) {
   if (!o.item_id) throw Object.assign(new Error('アイテムを選択してください'), { status: 400 })
   if (!o.player_id && !String(o.orderer_name || '').trim()) throw Object.assign(new Error('注文者（選手または氏名）を入力してください'), { status: 400 })
   if (!o.ordered_date) throw Object.assign(new Error('注文日を入力してください'), { status: 400 })
   return [
     Number(o.item_id), o.player_id ? Number(o.player_id) : null, o.player_id ? null : String(o.orderer_name).trim(),
-    nz(o.size), Math.max(1, Number(o.qty) || 1), o.ordered_date, nz(o.delivered_date), nz(o.paid_date),
+    nz(o.size), Math.max(1, Number(o.qty) || 1), o.placed ? 1 : 0, o.ordered_date, nz(o.delivered_date), nz(o.paid_date),
     o.amount === '' || o.amount === undefined || o.amount === null ? null : Number(o.amount), nz(o.note),
   ]
 }
@@ -414,9 +414,13 @@ app.post('/orders/bulk', h(async (req, res) => {
   } finally { conn.release() }
 }))
 
-// 手渡し日・徴収日をワンタップで記録／取消（body: { field:'delivered_date'|'paid_date', date:'yyyy-mm-dd'|null }）
+// ワンタップ更新（body: { field:'delivered_date'|'paid_date', date:'yyyy-mm-dd'|null } または { field:'placed', value:0|1 }）
 app.post('/orders/:id/mark', h(async (req, res) => {
-  const { field, date } = req.body
+  const { field, date, value } = req.body
+  if (field === 'placed') {
+    await q('UPDATE orders SET placed=? WHERE id=?', [value ? 1 : 0, req.params.id])
+    return res.json({ ok: true })
+  }
   if (!['delivered_date', 'paid_date'].includes(field)) return res.status(400).json({ error: 'bad field' })
   await q(`UPDATE orders SET ${field}=? WHERE id=?`, [nz(date), req.params.id])
   res.json({ ok: true })

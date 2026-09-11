@@ -6,12 +6,13 @@ import { orgGrade } from './Players.jsx'
 // ============ 物品注文管理 ============
 // アイテム（練習Tシャツ・レースユニフォーム等）をキーに、誰が・何を・いつ注文 / いつ手渡し / いつ費用徴収 を管理
 const splitSizes = (s) => String(s || '').split(/[,、，\s]+/).map(x => x.trim()).filter(Boolean)
-const STATUS = ['すべて', '未手渡し', '未徴収', '完了']
+const STATUS = ['すべて', '未注文', '注文済み', '未手渡し', '未徴収', '完了']
 const yen = (n) => (n === null || n === undefined || n === '' ? '' : Number(n).toLocaleString('ja-JP') + '円')
-const statusOf = (o) => (o.paid_date && o.delivered_date ? '完了' : o.delivered_date ? '手渡し済' : '注文済')
+// 状態: 未注文（受付のみ）→ 注文済み（業者へ発注）→ 手渡し済 → 完了（手渡し＋徴収）
+const statusOf = (o) => (o.paid_date && o.delivered_date ? '完了' : o.delivered_date ? '手渡し済' : o.placed ? '注文済み' : '未注文')
 const StatusBadge = ({ o }) => {
   const s = statusOf(o)
-  return <span className={'ost' + (s === '完了' ? ' p' : s === '手渡し済' ? ' d' : '')}>{s}</span>
+  return <span className={'ost' + (s === '完了' ? ' p' : s === '手渡し済' ? ' d' : s === '未注文' ? ' n' : '')}>{s}</span>
 }
 
 export function OrdersPage({ masters, toast }) {
@@ -35,7 +36,7 @@ export function OrdersPage({ masters, toast }) {
   const activeItems = items.filter(i => i.active)
   const match = (o) =>
     (itemId === 'all' || String(o.item_id) === itemId) &&
-    (st === 'すべて' || (st === '未手渡し' ? !o.delivered_date : st === '未徴収' ? !o.paid_date : !!(o.delivered_date && o.paid_date))) &&
+    (st === 'すべて' || (st === '未注文' ? !o.placed : st === '注文済み' ? !!o.placed : st === '未手渡し' ? !o.delivered_date : st === '未徴収' ? !o.paid_date : !!(o.delivered_date && o.paid_date))) &&
     (!qtext || `${o.who || ''}${o.note || ''}${o.size || ''}`.includes(qtext.trim()))
   const shown = orders.filter(match)
   // アイテムごとにグループ表示（表示順＝アイテムの並び順）
@@ -51,6 +52,24 @@ export function OrdersPage({ masters, toast }) {
       await api.markOrder(o.id, field, has ? null : todayStr())
       await reload()
       toast(has ? `${label}を取り消しました` : `${label}を記録しました（${fmt(todayStr())}）✓`)
+    } catch (e) { toast('エラー: ' + e.message) }
+  }
+  async function togglePlaced(o) {
+    try {
+      await api.setOrderPlaced(o.id, !o.placed)
+      await reload()
+      toast(o.placed ? `${o.who} を未注文に戻しました` : `${o.who} を注文済みにしました ✓`)
+    } catch (e) { toast('エラー: ' + e.message) }
+  }
+  // アイテム内の表示中の注文をまとめて注文済み／未注文に
+  async function placeAll(rows, value) {
+    const targets = rows.filter(o => !!o.placed !== value)
+    if (!targets.length) return
+    if (!confirm(`表示中の ${targets.length} 件を${value ? '注文済み' : '未注文'}にしますか？`)) return
+    try {
+      for (const o of targets) await api.setOrderPlaced(o.id, value)
+      await reload()
+      toast(`${targets.length} 件を${value ? '注文済み' : '未注文'}にしました ✓`)
     } catch (e) { toast('エラー: ' + e.message) }
   }
 
@@ -79,6 +98,7 @@ export function OrdersPage({ masters, toast }) {
 
       {groups.map(({ item, rows }) => {
         const n = rows.reduce((a, o) => a + o.qty, 0)
+        const placed = rows.filter(o => o.placed).length
         const dlv = rows.filter(o => o.delivered_date).length
         const paid = rows.filter(o => o.paid_date).length
         const sum = rows.reduce((a, o) => a + (o.amount ?? (item.price ? item.price * o.qty : 0)), 0)
@@ -93,15 +113,19 @@ export function OrdersPage({ masters, toast }) {
               {item.price != null && <span style={{ fontSize: 12, color: 'var(--text2)' }}>単価 {yen(item.price)}</span>}
             </div>
             <div className="osum">
-              <span>注文 <b>{rows.length}件 / {n}点</b></span>
+              <span>受付 <b>{rows.length}件 / {n}点</b></span>
+              <span>注文済み <b>{placed}</b>／未注文 <b style={{ color: placed < rows.length ? 'var(--red)' : undefined }}>{rows.length - placed}</b></span>
               <span>手渡し済 <b>{dlv}</b>／未 <b style={{ color: dlv < rows.length ? 'var(--amber)' : undefined }}>{rows.length - dlv}</b></span>
               <span>徴収済 <b>{paid}</b>／未 <b style={{ color: paid < rows.length ? 'var(--amber)' : undefined }}>{rows.length - paid}</b></span>
               {sum > 0 && <span>金額計 <b>{yen(sum)}</b></span>}
               <span>サイズ別: {Object.entries(bySize).map(([k, v]) => `${k}×${v}`).join('　')}</span>
+              {rows.length > 0 && (placed < rows.length
+                ? <button className="qb" onClick={() => placeAll(rows, true)}><i className="ti ti-checks" /> 表示中を全て注文済みに</button>
+                : <button className="qb done" onClick={() => placeAll(rows, false)}>全て未注文に戻す</button>)}
             </div>
             {rows.length === 0 ? <p className="empty" style={{ padding: '14px 0' }}>注文がありません</p> : (
               <div className="tw"><table className="tb">
-                <thead><tr><th>注文者</th><th>サイズ</th><th>数量</th><th>注文日</th><th>手渡し日</th><th>徴収日</th><th>金額</th><th>状況</th><th>備考</th><th></th></tr></thead>
+                <thead><tr><th>注文者</th><th>サイズ</th><th>数量</th><th>注文</th><th>受付日</th><th>手渡し日</th><th>徴収日</th><th>金額</th><th>状況</th><th>備考</th><th></th></tr></thead>
                 <tbody>{rows.map(o => (
                   <tr key={o.id}>
                     <td className="cell" onClick={() => setEdit(o)} style={{ fontWeight: 500 }}>
@@ -110,6 +134,8 @@ export function OrdersPage({ masters, toast }) {
                     </td>
                     <td className="cell" onClick={() => setEdit(o)}>{o.size || '—'}</td>
                     <td className="cell num" onClick={() => setEdit(o)}>{o.qty}</td>
+                    <td><button className={'qb' + (o.placed ? ' done' : ' warn')} title={o.placed ? 'タップで未注文に戻す' : 'タップで注文済みにする'} onClick={() => togglePlaced(o)}>
+                      {o.placed ? <><i className="ti ti-check" /> 注文済み</> : '未注文'}</button></td>
                     <td className="cell" onClick={() => setEdit(o)}>{fmt(o.ordered_date)}</td>
                     <td><button className={'qb' + (o.delivered_date ? ' done' : '')} title={o.delivered_date ? 'タップで取消' : '今日の日付で手渡し記録'} onClick={() => quick(o, 'delivered_date')}>
                       {o.delivered_date ? fmt(o.delivered_date) : <><i className="ti ti-hand-move" /> 手渡し</>}</button></td>
@@ -145,12 +171,12 @@ export function OrdersPage({ masters, toast }) {
 
 // ============ 注文 追加・編集 ============
 function OrderModal({ order, items, players, defaultItem, toast, onClose, onSaved, onDeleted }) {
-  const blank = { item_id: defaultItem || String(items[0]?.id || ''), player_id: '', orderer_name: '', size: '', qty: 1, ordered_date: todayStr(), delivered_date: '', paid_date: '', amount: '', note: '' }
+  const blank = { item_id: defaultItem || String(items[0]?.id || ''), player_id: '', orderer_name: '', size: '', qty: 1, placed: 0, ordered_date: todayStr(), delivered_date: '', paid_date: '', amount: '', note: '' }
   const [f, setF] = useState(() => {
     if (!order) return blank
     const o = { ...blank }
     Object.keys(blank).forEach(k => { o[k] = order[k] ?? '' })
-    o.id = order.id; o.item_id = String(order.item_id); o.player_id = order.player_id ? String(order.player_id) : ''
+    o.id = order.id; o.item_id = String(order.item_id); o.player_id = order.player_id ? String(order.player_id) : ''; o.placed = order.placed ? 1 : 0
     return o
   })
   const [other, setOther] = useState(!!(order && !order.player_id))
@@ -171,7 +197,7 @@ function OrderModal({ order, items, players, defaultItem, toast, onClose, onSave
     if (!f.item_id) { toast('アイテムを選択してください'); return }
     if (!other && !f.player_id) { toast('注文者（選手）を選択してください'); return }
     if (other && !f.orderer_name.trim()) { toast('注文者名を入力してください'); return }
-    if (!f.ordered_date) { toast('注文日を入力してください'); return }
+    if (!f.ordered_date) { toast('受付日を入力してください'); return }
     setBusy(true)
     try {
       await api.saveOrder({ ...f, player_id: other ? null : Number(f.player_id), orderer_name: other ? f.orderer_name.trim() : null })
@@ -215,8 +241,15 @@ function OrderModal({ order, items, players, defaultItem, toast, onClose, onSave
           </div>
           <div className="fg"><label>数量</label><input type="number" min={1} value={f.qty} onChange={e => set('qty', e.target.value)} /></div>
         </div>
-        <div className="sd"><i className="ti ti-calendar" />日付</div>
-        <div className="fg"><label>注文日 *</label><input type="date" value={f.ordered_date || ''} onChange={e => set('ordered_date', e.target.value)} /></div>
+        <div className="sd"><i className="ti ti-calendar" />状態・日付</div>
+        <div className="g2">
+          <div className="fg"><label>注文状態</label>
+            <select value={f.placed} onChange={e => set('placed', Number(e.target.value))}>
+              <option value={0}>未注文</option><option value={1}>注文済み</option>
+            </select>
+          </div>
+          <div className="fg"><label>受付日 *</label><input type="date" value={f.ordered_date || ''} onChange={e => set('ordered_date', e.target.value)} /></div>
+        </div>
         <div className="g2">
           <div className="fg"><label>手渡し日</label>
             <div className="row"><input type="date" value={f.delivered_date || ''} onChange={e => set('delivered_date', e.target.value)} />
@@ -281,7 +314,7 @@ function BulkOrderModal({ items, players, masters, defaultItem, toast, onClose, 
           <div className="fg"><label>アイテム *</label>
             <select value={itemId} onChange={e => { setItemId(e.target.value); setSel({}) }}>{items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select>
           </div>
-          <div className="fg"><label>注文日 *</label><input type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
+          <div className="fg"><label>受付日 *</label><input type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
         </div>
         <div className="cr" style={{ padding: '0 0 8px' }}>
           {orgs.map(o => <button key={o} className={'ch' + (org === o ? ' on' : '')} onClick={() => setOrg(o)}>{o}</button>)}

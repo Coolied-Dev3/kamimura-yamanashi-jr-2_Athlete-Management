@@ -221,6 +221,7 @@ CREATE TABLE IF NOT EXISTS orders (
   orderer_name    VARCHAR(255) NULL,           -- 選手以外の注文者名（コーチ・保護者など）
   size            VARCHAR(32),
   qty             INT NOT NULL DEFAULT 1,
+  placed          TINYINT(1) NOT NULL DEFAULT 0,  -- 0=未注文 1=注文済み
   ordered_date    DATE NOT NULL,               -- 注文日
   delivered_date  DATE NULL,                   -- 手渡し日
   paid_date       DATE NULL,                   -- 費用徴収日
