@@ -367,7 +367,7 @@ const ORDER_SELECT = `SELECT o.*, i.name AS item_name, i.price AS item_price, i.
   FROM orders o JOIN order_items i ON i.id=o.item_id LEFT JOIN players p ON p.id=o.player_id`
 
 app.get('/orders', h(async (_req, res) => {
-  res.json(await q(`${ORDER_SELECT} ORDER BY i.sort_order, o.ordered_date DESC, o.id DESC`))
+  res.json(await q(`${ORDER_SELECT} ORDER BY i.sort_order, (p.id IS NULL), ${PLAYER_ORDER}, o.id`))  // 選手外（orderer_name）の注文は末尾
 }))
 
 const ORDER_COLS = ['item_id', 'player_id', 'orderer_name', 'size', 'qty', 'placed', 'ordered_date', 'delivered_date', 'paid_date', 'amount', 'note']
