@@ -10,9 +10,15 @@ const STATUS = ['すべて', '未注文', '注文済み', '未手渡し', '未�
 const yen = (n) => (n === null || n === undefined || n === '' ? '' : Number(n).toLocaleString('ja-JP') + '円')
 // 状態: 未注文（受付のみ）→ 注文済み（業者へ発注）→ 手渡し済 → 完了（手渡し＋徴収）
 const statusOf = (o) => (o.paid_date && o.delivered_date ? '完了' : o.delivered_date ? '手渡し済' : o.placed ? '注文済み' : '未注文')
-const StatusBadge = ({ o }) => {
+// onToggle 指定時、未注文／注文済みのバッジはクリックで切替できる
+const StatusBadge = ({ o, onToggle }) => {
   const s = statusOf(o)
-  return <span className={'ost' + (s === '完了' ? ' p' : s === '手渡し済' ? ' d' : s === '未注文' ? ' n' : '')}>{s}</span>
+  const clickable = onToggle && (s === '未注文' || s === '注文済み')
+  return (
+    <span className={'ost' + (s === '完了' ? ' p' : s === '手渡し済' ? ' d' : s === '未注文' ? ' n' : '') + (clickable ? ' clk' : '')}
+      title={clickable ? (s === '未注文' ? 'クリックで注文済みにする' : 'クリックで未注文に戻す') : undefined}
+      onClick={clickable ? () => onToggle(o) : undefined}>{s}</span>
+  )
 }
 
 export function OrdersPage({ masters, toast }) {
@@ -134,15 +140,15 @@ export function OrdersPage({ masters, toast }) {
                     </td>
                     <td className="cell" onClick={() => setEdit(o)}>{o.size || '—'}</td>
                     <td className="cell num" onClick={() => setEdit(o)}>{o.qty}</td>
-                    <td><button className={'qb' + (o.placed ? ' done' : ' warn')} title={o.placed ? 'タップで未注文に戻す' : 'タップで注文済みにする'} onClick={() => togglePlaced(o)}>
-                      {o.placed ? <><i className="ti ti-check" /> 注文済み</> : '未注文'}</button></td>
+                    <td><button className={'qb tg' + (o.placed ? ' on' : '')} title={o.placed ? 'クリックで未注文に戻す' : 'クリックで注文済みにする'} onClick={() => togglePlaced(o)}>
+                      {o.placed ? <><i className="ti ti-check" /> 注文済み</> : <><i className="ti ti-circle" /> 未注文</>}</button></td>
                     <td className="cell" onClick={() => setEdit(o)}>{fmt(o.ordered_date)}</td>
                     <td><button className={'qb' + (o.delivered_date ? ' done' : '')} title={o.delivered_date ? 'タップで取消' : '今日の日付で手渡し記録'} onClick={() => quick(o, 'delivered_date')}>
                       {o.delivered_date ? fmt(o.delivered_date) : <><i className="ti ti-hand-move" /> 手渡し</>}</button></td>
                     <td><button className={'qb' + (o.paid_date ? ' done' : '')} title={o.paid_date ? 'タップで取消' : '今日の日付で徴収記録'} onClick={() => quick(o, 'paid_date')}>
                       {o.paid_date ? fmt(o.paid_date) : <><i className="ti ti-coin-yen" /> 徴収</>}</button></td>
                     <td className="cell num" onClick={() => setEdit(o)}>{yen(o.amount ?? (item.price ? item.price * o.qty : null))}</td>
-                    <td><StatusBadge o={o} /></td>
+                    <td><StatusBadge o={o} onToggle={togglePlaced} /></td>
                     <td className="cell" onClick={() => setEdit(o)} style={{ maxWidth: 260, whiteSpace: 'normal', fontSize: 13, color: 'var(--text2)' }}>{o.note || ''}</td>
                     <td><button className="iconbtn" title="編集" onClick={() => setEdit(o)}><i className="ti ti-edit" /></button></td>
                   </tr>
