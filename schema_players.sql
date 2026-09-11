@@ -238,9 +238,10 @@ CREATE TABLE IF NOT EXISTS orders (
 -- アイテム初期値
 INSERT INTO order_items (name, sizes, sort_order)
 SELECT * FROM (
-  SELECT '練習Tシャツ' AS name, '130,140,150,XS,S,M,L,XL' AS sizes, 1 AS sort_order UNION ALL
-  SELECT 'レースユニフォーム 上（タンクトップ）', '130,140,150,XS,S,M,L,XL', 2 UNION ALL
-  SELECT 'レースユニフォーム 下（レーシングタイツ）', '130,140,150,XS,S,M,L,XL', 3
+  SELECT '練習Tシャツ（選手用）' AS name, '130,140,150,SS,S,M,L,LL,XL' AS sizes, 1 AS sort_order UNION ALL
+  SELECT '練習Tシャツ（保護者用）', 'S,M,L,LL,XL,3L', 2 UNION ALL
+  SELECT 'レースユニフォーム 上（タンクトップ）', 'ジュニア130cm,ジュニア140cm,ジュニア150cm,ウィメンズSS,ウィメンズS,ウィメンズM,ウィメンズL,ウィメンズLL,ユニセックスSS,ユニセックスS,ユニセックスM,ユニセックスL,ユニセックスLL,SS,S,M,L,LL', 3 UNION ALL
+  SELECT 'レースユニフォーム 下（レーシングタイツ）', '130cm,140cm,150cm,SS,S,M,L,LL', 4
 ) v
 WHERE NOT EXISTS (SELECT 1 FROM order_items);
 
